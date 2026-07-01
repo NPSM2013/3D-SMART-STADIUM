@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Stadium Launch Angle Explorer</title>
+<style>
+  :root{
+    --turf-dark:#1b3a2b;
+    --turf-light:#225235;
+    --chalk:#f2efe6;
+    --clay:#b5603a;
+    --floodlight:#ffd166;
+    --ink:#0e1410;
+    --panel:#13201a;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:var(--ink);font-family:'Courier New',monospace;overflow:hidden;}
+  #scene{position:absolute;inset:0;}
+
+  .hud{
+    position:absolute;
+    z-index:10;
+    color:var(--chalk);
+  }
+  #title{
+    top:18px; left:18px;
+    max-width:340px;
+  }
+  #title h1{
+    font-family:'Georgia', serif;
+    font-size:22px;
+    letter-spacing:0.5px;
+    margin:0 0 4px 0;
+    color:var(--floodlight);
+    font-weight:700;
+  }
+  #title p{
+    margin:0;
+    font-size:12px;
+    line-height:1.5;
+    color:#c8d3c8;
+  }
+
+  #panel{
+    bottom:18px; left:18px;
+    background:rgba(19,32,26,0.88);
+    border:1px solid #3a5444;
+    border-radius:4px;
+    padding:16px 18px;
+    width:300px;
+    backdrop-filter:blur(4px);
+  }
+  .row{margin-bottom:14px;}
+  .row:last-child{margin-bottom:0;}
+  .label{
+    display:flex; justify-content:space-between;
+    font-size:11px; letter-spacing:1px; text-transform:uppercase;
+    color:#9fb3a4; margin-bottom:6px;
+  }
+  .label .val{ color:var(--floodlight); font-weight:bold; letter-spacing:0; }
+  input[type=range]{
+    width:100%;
+    -webkit-appearance:none;
+    height:3px;
+    background:#3a5444;
+    outline:none;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;
+    width:14px;height:14px;border-radius:50%;
+    background:var(--clay);
+    border:2px solid var(--chalk);
+    cursor:pointer;
+  }
+  #fireBtn{
+    width:100%;
+    margin-top:4px;
+    padding:10px;
+    background:var(--clay);
+    color:var(--chalk);
+    border:none;
+    border-radius:3px;
+    font-family:inherit;
+    font-size:13px;
+    letter-spacing:2px;
+    text-transform:uppercase;
+    cursor:pointer;
+    transition:background 0.15s, transform 0.1s;
+  }
+  #fireBtn:hover{background:#c66a40;}
+  #fireBtn:active{transform:scale(0.97);}
+  #fireBtn:disabled{background:#5c5346; cursor:default;}
+
+  #stats{
+    top:18px; right:18px;
+    background:rgba(19,32,26,0.88);
+    border:1px solid #3a5444;
+    border-radius:4px;
+    padding:14px 18px;
+    min-width:160px;
+    text-align:right;
+  }
+  #stats .num{
+    font-family:'Georgia', serif;
+    font-size:26px;
+    color:var(--floodlight);
+    line-height:1.1;
+  }
+  #stats .unit{font-size:11px; color:#9fb3a4;}
+  .stat-line{margin-bottom:10px;}
+  .stat-line:last-child{margin-bottom:0;}
+  .stat-name{font-size:10px; letter-spacing:1px; text-transform:uppercase; color:#9fb3a4;}
+
+  #trails{
+    bottom:18px; right:18px;
+    background:rgba(19,32,26,0.88);
+    border:1px solid #3a5444;
+    border-radius:4px;
+    padding:10px 14px;
+    font-size:11px;
+    color:#c8d3c8;
+    max-width:230px;
+  }
+  #trails .h{font-size:10px; letter-spacing:1px; text-transform:uppercase; color:#9fb3a4; margin-bottom:6px;}
+  .swatch{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:middle;}
+
+  #hint{
+    position:absolute; bottom:18px; left:50%; transform:translateX(-50%);
+    color:#6b7d70; font-size:11px; letter-spacing:1px; z-index:10;
+  }
+</style>
+</head>
+<body>
+<div id="scene"></div>
+
+<div class="hud" id="title">
+  <h1>RELEASE ANGLE</h1>
+  <p>Drag the angle below, then launch the ball from home plate. Steeper angles climb higher but land shorter; flatter angles fly farther but stay low &mdash; physics, not chance.</p>
+</div>
+
+<div class="hud" id="panel">
+  <div class="row">
+    <div class="label">Launch Angle <span class="val" id="angleVal">35&deg;</span></div>
+    <input type="range" id="angle" min="5" max="80" value="35" step="1">
+  </div>
+  <div class="row">
+    <div class="label">Launch Speed <span class="val" id="speedVal">32 m/s</span></div>
+    <input type="range" id="speed" min="18" max="45" value="32" step="1">
+  </div>
+  <button id="fireBtn">Launch Ball</button>
+</div>
+
+<div class="hud" id="stats">
+  <div class="stat-line">
+    <div class="stat-name">Peak Height</div>
+    <div class="num" id="statHeight">0.0<span class="unit"> m</span></div>
+  </div>
+  <div class="stat-line">
+    <div class="stat-name">Distance</div>
+    <div class="num" id="statDist">0.0<span class="unit"> m</span></div>
+  </div>
+  <div class="stat-line">
+    <div class="stat-name">Flight Time</div>
+    <div class="num" id="statTime">0.0<span class="unit"> s</span></div>
+  </div>
+</div>
+
+<div class="hud" id="trails">
+  <div class="h">Previous Launches</div>
+  <div id="trailList" style="color:#6b7d70;">No launches yet.</div>
+</div>
+
+<div id="hint">drag to orbit &middot; scroll to zoom</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0f0c);
+scene.fog = new THREE.Fog(0x0a0f0c, 120, 420);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth/window.innerHeight, 0.1, 2000);
+camera.position.set(-70, 55, 110);
+
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.getElementById('scene').appendChild(renderer.domElement);
+
+// ---------- lights ----------
+const hemi = new THREE.HemisphereLight(0x9fc3ff, 0x1b3a2b, 0.55);
+scene.add(hemi);
+const moon = new THREE.DirectionalLight(0xfff3d6, 0.9);
+moon.position.set(-80, 140, 60);
+moon.castShadow = true;
+moon.shadow.mapSize.set(2048,2048);
+moon.shadow.camera.left = -200;
+moon.shadow.camera.right = 200;
+moon.shadow.camera.top = 200;
+moon.shadow.camera.bottom = -200;
+moon.shadow.camera.far = 500;
+scene.add(moon);
+
+// floodlight towers (4 corners)
+function addFloodlight(x,z){
+  const poleGeo = new THREE.CylinderGeometry(0.6,0.6,38,8);
+  const poleMat = new THREE.MeshStandardMaterial({color:0x2a2a2a, metalness:0.6, roughness:0.5});
+  const pole = new THREE.Mesh(poleGeo, poleMat);
+  pole.position.set(x,19,z);
+  pole.castShadow = true;
+  scene.add(pole);
+
+  const headGeo = new THREE.BoxGeometry(7,4,1.2);
+  const headMat = new THREE.MeshStandardMaterial({color:0x1a1a1a, metalness:0.5, roughness:0.6});
+  const head = new THREE.Mesh(headGeo, headMat);
+  head.position.set(x,38,z);
+  head.lookAt(0,0,0);
+  scene.add(head);
+
+  const light = new THREE.PointLight(0xfff0c2, 0.6, 220, 2);
+  light.position.set(x,37,z);
+  scene.add(light);
+
+  // small glow spheres to suggest bulbs
+  for(let i=-1;i<=1;i++){
+    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.25,8,8), new THREE.MeshBasicMaterial({color:0xfff0c2}));
+    const dir = new THREE.Vector3(0,0,0).sub(new THREE.Vector3(x,38,z)).normalize();
+    bulb.position.set(x + i*2, 38, z);
+    scene.add(bulb);
+  }
+}
+addFloodlight(150,150);
+addFloodlight(-150,150);
+addFloodlight(150,-150);
+addFloodlight(-150,-150);
+
+// ---------- ground / field ----------
+const fieldGeo = new THREE.CircleGeometry(95, 64);
+const fieldMat = new THREE.MeshStandardMaterial({color:0x225235, roughness:0.9});
+const field = new THREE.Mesh(fieldGeo, fieldMat);
+field.rotation.x = -Math.PI/2;
+field.receiveShadow = true;
+scene.add(field);
+
+// mow stripes
+const stripeCount = 14;
+for(let i=0;i<stripeCount;i++){
+  const angleStart = (i/stripeCount) * Math.PI*2;
+  const stripeGeo = new THREE.RingGeometry(0.1, 95, 64, 1, angleStart, (Math.PI*2/stripeCount));
+  const stripeMat = new THREE.MeshStandardMaterial({
+    color: i%2===0 ? 0x255a3a : 0x1f4c30,
+    roughness:0.95, side:THREE.DoubleSide
+  });
+  const stripe = new THREE.Mesh(stripeGeo, stripeMat);
+  stripe.rotation.x = -Math.PI/2;
+  stripe.position.y = 0.01;
+  stripe.receiveShadow = true;
+  scene.add(stripe);
+}
+
+// dirt infield arc (home-plate area)
+const dirtGeo = new THREE.CircleGeometry(26, 48, 0, Math.PI);
+const dirtMat = new THREE.MeshStandardMaterial({color:0xb5603a, roughness:1});
+const dirt = new THREE.Mesh(dirtGeo, dirtMat);
+dirt.rotation.x = -Math.PI/2;
+dirt.rotation.z = Math.PI;
+dirt.position.set(0,0.02,30);
+dirt.receiveShadow = true;
+scene.add(dirt);
+
+// warning track ring
+const trackGeo = new THREE.RingGeometry(88,95,64);
+const trackMat = new THREE.MeshStandardMaterial({color:0x8a5a3a, roughness:1});
+const track = new THREE.Mesh(trackGeo, trackMat);
+track.rotation.x = -Math.PI/2;
+track.position.y = 0.015;
+track.receiveShadow = true;
+scene.add(track);
+
+// chalk foul lines
+function chalkLine(x1,z1,x2,z2){
+  const pts = [new THREE.Vector3(x1,0.05,z1), new THREE.Vector3(x2,0.05,z2)];
+  const geo = new THREE.BufferGeometry().setFromPoints(pts);
+  const mat = new THREE.LineBasicMaterial({color:0xf2efe6, linewidth:2});
+  scene.add(new THREE.Line(geo,mat));
+}
+chalkLine(0,30,75,-45);
+chalkLine(0,30,-75,-45);
+
+// ---------- stands (tiered ring) ----------
+function buildStands(){
+  const group = new THREE.Group();
+  const tiers = [
+    {rIn:96, rOut:118, h:14, y:0, color:0x3a3a3a},
+    {rIn:118, rOut:140, h:20, y:14, color:0x34302c},
+    {rIn:140, rOut:158, h:22, y:34, color:0x2c2824},
+  ];
+  tiers.forEach(t=>{
+    const geo = new THREE.CylinderGeometry(t.rOut, t.rIn, t.h, 48, 1, true);
+    const mat = new THREE.MeshStandardMaterial({color:t.color, roughness:0.85, side:THREE.DoubleSide});
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.y = t.y + t.h/2;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    group.add(mesh);
+
+    // seat color band (crowd suggestion) using a striped inner ring
+    const seatGeo = new THREE.CylinderGeometry(t.rOut-1.5, t.rIn-1.5, t.h*0.7, 48, 1, true);
+    const seatColors = [0x7a2e2e,0x2e4e7a,0x7a6a2e,0x3a6e4e];
+    const seatMat = new THREE.MeshStandardMaterial({color:seatColors[Math.floor(Math.random()*seatColors.length)], roughness:0.9, side:THREE.DoubleSide});
+    const seatMesh = new THREE.Mesh(seatGeo, seatMat);
+    seatMesh.position.y = t.y + t.h*0.55;
+    group.add(seatMesh);
+  });
+
+  // roof ring
+  const roofGeo = new THREE.TorusGeometry(149, 3, 8, 48);
+  const roofMat = new THREE.MeshStandardMaterial({color:0x161616, metalness:0.4, roughness:0.6});
+  const roof = new THREE.Mesh(roofGeo, roofMat);
+  roof.rotation.x = Math.PI/2;
+  roof.position.y = 58;
+  roof.castShadow = true;
+  group.add(roof);
+
+  return group;
+}
+scene.add(buildStands());
+
+// outfield wall
+const wallGeo = new THREE.CylinderGeometry(92,92,4,64,1,true);
+const wallMat = new THREE.MeshStandardMaterial({color:0x1b3a2b, roughness:0.8, side:THREE.DoubleSide});
+const wall = new THREE.Mesh(wallGeo, wallMat);
+wall.position.y = 2;
+wall.castShadow = true;
+wall.receiveShadow = true;
+scene.add(wall);
+
+// ---------- launcher marker (home plate) ----------
+const plateGeo = new THREE.CylinderGeometry(1.4,1.4,0.15,5);
+const plateMat = new THREE.MeshStandardMaterial({color:0xf2efe6});
+const plate = new THREE.Mesh(plateGeo, plateMat);
+plate.position.set(0,0.1,30);
+plate.castShadow = true;
+scene.add(plate);
+
+// ---------- ball ----------
+const ballGeo = new THREE.SphereGeometry(0.9,16,16);
+const ballMat = new THREE.MeshStandardMaterial({color:0xffffff, roughness:0.4});
+const ball = new THREE.Mesh(ballGeo, ballMat);
+ball.castShadow = true;
+ball.position.set(0,1,30);
+scene.add(ball);
+
+// distance markers on field every 20m as faint rings
+for(let r=20;r<=90;r+=20){
+  const ringGeo = new THREE.RingGeometry(r-0.15, r+0.15, 64, 1, Math.PI*0.5, Math.PI);
+  const ringMat = new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:0.08, side:THREE.DoubleSide});
+  const ring = new THREE.Mesh(ringGeo, ringMat);
+  ring.rotation.x = -Math.PI/2;
+  ring.position.set(0,0.03,30);
+  scene.add(ring);
+}
+
+// ---------- orbit-style manual camera controls (no extra lib) ----------
+let camTheta = Math.atan2(-70,110) , camPhi = 0.95, camRadius = 145;
+let isDragging=false, lastX=0,lastY=0;
+const domEl = renderer.domElement;
+domEl.addEventListener('mousedown', e=>{isDragging=true; lastX=e.clientX; lastY=e.clientY;});
+window.addEventListener('mouseup', ()=>isDragging=false);
+window.addEventListener('mousemove', e=>{
+  if(!isDragging) return;
+  const dx = e.clientX-lastX, dy = e.clientY-lastY;
+  lastX=e.clientX; lastY=e.clientY;
+  camTheta -= dx*0.005;
+  camPhi = Math.min(1.5, Math.max(0.25, camPhi - dy*0.005));
+  updateCamera();
+});
+domEl.addEventListener('wheel', e=>{
+  camRadius = Math.min(260, Math.max(50, camRadius + e.deltaY*0.08));
+  updateCamera();
+}, {passive:true});
+let touchLast=null;
+domEl.addEventListener('touchstart', e=>{touchLast=e.touches[0];});
+domEl.addEventListener('touchmove', e=>{
+  if(!touchLast) return;
+  const t=e.touches[0];
+  const dx=t.clientX-touchLast.clientX, dy=t.clientY-touchLast.clientY;
+  touchLast=t;
+  camTheta -= dx*0.005;
+  camPhi = Math.min(1.5, Math.max(0.25, camPhi - dy*0.005));
+  updateCamera();
+},{passive:true});
+domEl.addEventListener('touchend', ()=>touchLast=null);
+
+function updateCamera(){
+  const target = new THREE.Vector3(0,15,10);
+  camera.position.x = target.x + camRadius*Math.sin(camPhi)*Math.cos(camTheta);
+  camera.position.y = target.y + camRadius*Math.cos(camPhi);
+  camera.position.z = target.z + camRadius*Math.sin(camPhi)*Math.sin(camTheta);
+  camera.lookAt(target);
+}
+updateCamera();
+
+window.addEventListener('resize', ()=>{
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ---------- physics & trajectory trails ----------
+const g = 9.81;
+const angleSlider = document.getElementById('angle');
+const speedSlider = document.getElementById('speed');
+const angleVal = document.getElementById('angleVal');
+const speedVal = document.getElementById('speedVal');
+const fireBtn = document.getElementById('fireBtn');
+const statHeight = document.getElementById('statHeight');
+const statDist = document.getElementById('statDist');
+const statTime = document.getElementById('statTime');
+const trailList = document.getElementById('trailList');
+
+const trailColors = [0xffd166,0x6fd3ff,0xff7a6f,0xb98aff,0x8aff9e];
+let launchCount = 0;
+const trailMeshes = [];
+
+angleSlider.addEventListener('input', ()=>{ angleVal.textContent = angleSlider.value + '\u00b0'; });
+speedSlider.addEventListener('input', ()=>{ speedVal.textContent = speedSlider.value + ' m/s'; });
+
+function computeTrajectory(angleDeg, speed){
+  const rad = angleDeg * Math.PI/180;
+  const vx = speed*Math.cos(rad);
+  const vy = speed*Math.sin(rad);
+  const totalTime = (2*vy)/g;
+  const distance = vx*totalTime;
+  const peakHeight = (vy*vy)/(2*g);
+  return {vx, vy, totalTime, distance, peakHeight};
+}
+
+let animId = null;
+
+function fire(){
+  if(animId) return;
+  fireBtn.disabled = true;
+  const angleDeg = parseFloat(angleSlider.value);
+  const speed = parseFloat(speedSlider.value);
+  const traj = computeTrajectory(angleDeg, speed);
+
+  statHeight.textContent = traj.peakHeight.toFixed(1);
+  statDist.textContent = traj.distance.toFixed(1);
+  statTime.textContent = traj.totalTime.toFixed(2);
+
+  // build trail line (z decreases = toward outfield, direction -z)
+  const trailColor = trailColors[launchCount % trailColors.length];
+  const points = [];
+  const steps = 60;
+  for(let i=0;i<=steps;i++){
+    const t = (i/steps)*traj.totalTime;
+    const x = traj.vx*t;
+    const y = traj.vy*t - 0.5*g*t*t;
+    points.push(new THREE.Vector3(0, Math.max(y,0)+1, 30 - x));
+  }
+  const trailGeo = new THREE.BufferGeometry().setFromPoints(points);
+  const trailMat = new THREE.LineBasicMaterial({color:trailColor, transparent:true, opacity:0.85, linewidth:2});
+  const trailLine = new THREE.Line(trailGeo, trailMat);
+  scene.add(trailLine);
+  trailMeshes.push(trailLine);
+
+  // landing marker
+  const landGeo = new THREE.RingGeometry(0.6,1.0,24);
+  const landMat = new THREE.MeshBasicMaterial({color:trailColor, side:THREE.DoubleSide});
+  const landMark = new THREE.Mesh(landGeo, landMat);
+  landMark.rotation.x = -Math.PI/2;
+  landMark.position.set(0,0.05, 30-traj.distance);
+  scene.add(landMark);
+  trailMeshes.push(landMark);
+
+  launchCount++;
+  if(trailList.children.length === 0 && trailList.textContent.includes('No launches')) trailList.textContent='';
+  const entry = document.createElement('div');
+  entry.style.marginBottom='4px';
+  entry.innerHTML = `<span class="swatch" style="background:#${trailColor.toString(16).padStart(6,'0')}"></span>${angleDeg}&deg; @ ${speed} m/s &rarr; ${traj.distance.toFixed(1)}m / ${traj.peakHeight.toFixed(1)}m`;
+  trailList.prepend(entry);
+
+  // animate ball
+  const startTime = performance.now();
+  const durationMs = Math.min(traj.totalTime*1000, 4500); // cap visual duration
+  const timeScale = traj.totalTime*1000/durationMs;
+
+  function animate(now){
+    const elapsedMs = now - startTime;
+    let simT = (elapsedMs*timeScale)/1000;
+    if(simT >= traj.totalTime){
+      simT = traj.totalTime;
+      const x = traj.vx*simT;
+      ball.position.set(0, 1, 30-x);
+      animId = null;
+      fireBtn.disabled = false;
+      return;
+    }
+    const x = traj.vx*simT;
+    const y = Math.max(traj.vy*simT - 0.5*g*simT*simT, 0);
+    ball.position.set(0, y+1, 30-x);
+    animId = requestAnimationFrame(animate);
+  }
+  animId = requestAnimationFrame(animate);
+}
+
+fireBtn.addEventListener('click', fire);
+
+// ---------- render loop ----------
+function loop(){
+  requestAnimationFrame(loop);
+  renderer.render(scene, camera);
+}
+loop();
+</script>
+</body>
+</html>
